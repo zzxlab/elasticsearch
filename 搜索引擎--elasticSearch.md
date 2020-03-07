@@ -14,10 +14,9 @@ centos下安装
 
    ```sh
    adduser es
-   passd es
    su es
    ```
-
+   
 2. 将下载好的安装包解压
 
    ```
@@ -278,6 +277,544 @@ select * from "zzx_demo" where not value_1 > 5 limit 5;
 
 以上四种命令的操作可以在kibana提供的dev tools工具上输入命令进行对数据的操作
 
+##### 创建索引
+
+使用put或者post
+
+```json
+POST /zzx 
+{
+  "settings": {
+    "number_of_shards": 5,
+    "number_of_replices": 1
+  },
+  "mappings": {
+    "user": {
+      "properties": {
+        "name": {
+          "type": "text",
+          "analyzer": "ik_max_word"
+        },
+        "address": {
+          "type": "text",
+          "analyzer": "ik_max_word"
+        },
+        "age": {
+          "type": "integer"
+        },
+        "interests": {
+          "type": "text",
+          "analyzer": "ik_max_word"
+        },
+        "birthday": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+或者
+PUT /product_info
+{
+  "settings": {
+    "number_of_shards": 5,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "products": {
+      "properties": {
+      "productName": {"type": "text","analyzer":"ik_smart"},
+      "annual_rate":{"type":"keyword"},
+      "describe":{"type":"text","analyzer":"ik_smart"}
+      }
+    }
+  }
+}
+```
+
+##### 添加数据
+
+###### 单条添加
+
+```json
+PUT /zzx/user/1
+{
+  "name": "赵六",
+  "address": "黑龙江省铁岭",
+  "age": 50,
+  "birthday": "1980-11-01",
+  "interests": "喜欢喝酒，锻炼，说相声"
+}
+
+PUT /zzx/user/2
+{
+  "name": "赵明",
+  "address": "北京海淀区清河",
+  "age": 20,
+  "birthday": "2000-11-01",
+  "interests": "喜欢喝酒，锻炼，唱歌"
+}
+PUT /zzx/user/3
+{
+  "name": "lisi",
+  "address": "北京海淀区清河",
+  "age": 23,
+  "birthday": "1997-12-01",
+  "interests": "喜欢喝酒，锻炼，唱歌"
+}
+```
+
+###### 多条添加（_bulk）
+
+##### term查询和terms查询
+
+term query会去倒排索引中寻找确切的term,它并不知道粉刺的存在，这种查询适合keyword、numeric、date;
+
+term：查询某个字段里含有某个关键词的文档
+
+```json
+get /zzx/demo/_search 
+{
+	"query": {
+		"term": {
+			"interests": "changge"
+		} 
+	}
+}
+```
+
+terms：查询某个字段里含有多个关键词的文档
+
+```json
+get /zzx/demo/_search 
+{
+	"query": {
+		"terms": {
+			"interests": ["changge","paobu"]
+		} 
+	}
+}
+```
+
+##### 基本查询（query查询）
+
+1. ik分词器
+
+   ik分词器带有两个分词器：ik_max_word和ik_smart
+
+   ik_max_word：会将文本做最细粒度的拆分，尽可能多的拆分出词语；
+
+   ik_smart：会做最粗粒度的拆分，已被分出的词语将不会再次被其他词语占有；
+
+2. 
+
+###### match查询
+
+match query知道分词器的存在，会对field进行分词操作，然后再查询
+
+```json
+get /zzx/user/_search
+{
+	"query": {
+		"match": {
+			"name": "zzx"
+		} 
+	}
+}
+```
+
+- match_all：查询所有文档
+
+  ```json
+  get /zzx/user/_search
+  {
+  	"query": {
+  		"match_all": {
+  			"name": {}
+  		} 
+  	}
+  }
+  ```
+
+- multi_match：可以指定多个字段
+
+  ```json
+  get /zzx/user/_search
+  {
+  	"query": {
+  		"multi_match": {
+  			"query": "you"
+  			"fields": ["interests","name"]
+  		} 
+  	}
+  }
+  ```
+
+- match_phrase：短语匹配查询
+
+  ```json
+  get /zzx/user/_search
+  {
+  	"query": {
+  		"match_phrase": {
+  			"interests": "changge,hejiu"
+  		} 
+  	}
+  }
+  ```
+
+###### 高亮查询
+
+高亮显示使用highlight
+
+```json
+GET /product_info/_search
+{
+  "query": {
+    "match": {
+      "describe": "最低起投"
+    }
+  },
+  "highlight": {
+    "fields": {"describe": {}}
+  }
+}
+```
+
+
+
+###### fuzzy 实现模糊查询
+
+- value：查询的关键字
+
+- boost：查询的权值，默认值是1.0
+
+- min_similarity：设置匹配的最小相似度，默认值为0.5，对于字符串取值为0-1（包括0和1）；对于数值，取值可能大于1；对于日期型取值为1d，1m等（1d代表一天）；
+
+- prefix_length：指明区分词项的共同前缀长度，默认为0；
+
+- max_expansions：查询中的词项可以扩展的数目，默认为无限大
+
+  ```json
+  get /zzx/demo/_search
+  {
+  	"query": {
+  		"fuzzy": {
+  			"interests": "changge"
+  		}
+  	}
+  }
+  get /zzx/demo/_search
+  {
+  	"query": {
+  		"fuzzy": {
+  			"interests": {
+                  "value": "changge"
+              }
+  		}
+  	}
+  }
+  ```
+
+###### 排序
+
+- 使用sort实现排序：desc降序，asc升序
+
+  ```json
+  get /zzx/user/_search
+  {
+  	"query": {
+  		"match_all": {}
+  	},
+  	"sort": [{
+  		"age": {
+  			"order": "desc"
+  		}
+  	}]
+  }
+  ```
+  
+- 对于text类型的字符串排序的问题，不能这样直接使用sort，因为text类型的内容，elasticsearch会进行分词，要使text类型字段进行排序，必须要进行索引两次，一次索引分词（用于搜索），一次索引不分词（用于排序）
+
+  ```
+  
+  ```
+
+  
+
+###### 前缀匹配查询
+
+```json
+get /zzx/user/_search
+{
+	"query": {
+		"match_phrase_prefix": {
+			"name": {
+				"query": "zhang"
+			}
+		}
+	}
+}
+```
+
+###### 范围查询
+
+- rang：实现范围查询
+- 参数： from，to，include_lower，include_upper，boost
+  - include_lower：是否包含范围的左边界，默认为true
+  - include_uppper：是否包含范围的有边界，默认为true
+
+##### filter查询
+
+> filter查询是不计算相关性的，同是可以cache。因此，filter速度要比query查询快
+
+###### 简单的过滤查询
+
+```json
+GET /zzx/_search
+{
+  "post_filter": {
+    "term": {
+      "interests": "喝酒"
+    }
+  }
+}
+
+GET /zzx/_search
+{
+  "query": {
+    "bool": {
+      "filter": {
+        "term": {
+          "interests": "喝酒"
+        }
+      }
+    }
+  }
+}
+```
+
+###### bool过滤查询
+
+可以实现组合过滤查询
+
+格式：
+
+```json
+{
+    "bool":{
+        "must":[],
+        "should":[],
+        "must_not":[]
+    }
+}
+```
+
+must：必须满足的条件--and
+
+should：可以满足的也可以不满足的条件--or
+
+must_not：不需要满足的条件--not
+
+```json
+GET /zzx/_search
+{
+  "query": {
+    "bool": {
+      "must_not": [
+        {"term": {
+          "interests": {
+            "value": "喝酒"
+          }
+        }}
+      ]
+    }
+  }
+}
+```
+
+###### 范围过滤
+
+- gt：>
+
+- lt：<
+- gte：>=
+- lte：<=
+
+###### 过滤非空
+
+```json
+GET /zzx/_search
+{
+    "query":{
+        "bool":{
+            "filter":{
+                "exists":{
+                    "interests":"唱歌"
+                }
+            }
+        }
+    }
+}
+```
+
+##### 聚合查询
+
+sum  min max  avg  cardinalitty求基数  terms分组
+
+ ```json
+#求和
+GET /zzx/_search
+{
+  "size": 0,
+  "aggs": {
+    "age_sum": {
+      "sum": {
+        "field": "age"
+      }
+    }
+  }
+}
+#求最小值
+GET /zzx/_search
+{
+  "size": 0,
+  "aggs": {
+    "age_min": {
+      "min": {
+        "field": "age"
+      }
+    }
+  }
+}
+#求最大值
+GET /zzx/_search
+{
+  "size": 0,
+  "aggs": {
+    "age_max": {
+      "max": {
+        "field": "age"
+      }
+    }
+  }
+}
+#求基数
+GET /zzx/_search
+{
+  "size": 0,
+  "aggs": {
+    "age_cardi": {
+      "cardinality": {
+        "field": "age"
+      }
+    }
+  }
+}
+
+#分组
+GET /zzx/_search
+{
+  "size": 0,
+  "aggs": {
+    "age_group": {
+      "terms": {
+        "field": "age"
+      }
+    }
+  }
+}
+#例子
+GET /zzx/_search
+{
+  "_source": ["name","age"], 
+  "query": {
+    "match": {
+      "interests": "唱歌"
+    }
+  },
+  "aggs": {
+    "age_cardi": {
+      "cardinality": {
+        "field": "age"
+      }
+    }
+  },
+  "sort": [
+    {
+      "age": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+ ```
+
+##### 复合查询
+
+接收以下参数
+
+- must：文档必须匹配这些条件才能被包含进来；
+- must_not：文档必须不匹配这些条件才能被包含进来；
+- should：如果满足这些语句中的任意条件，将增加_score,否则无任何影响。他们主要用于修正每个文档的相关性得分。
+- filter：必须匹配，但它以不评分、过滤模式来进行。这些语句对评分没有贡献，只是根据过滤标准来排除包括文档。
+
+相关性得分的组合：每一个子查询都独自的计算文档的相关性得分，一旦它们的得分被计算出来，bool查询就将这些得分进行合并并且返回一个代表整个布尔操作的得分。
+
+```json
+GET /ZZX/_Search
+{
+    "query":{
+        "bool":{
+            "must":{"match":{"interests":"唱歌"}},
+            "must_not":{"match":{"interests":"你好"}},
+            "should":[
+                {"match":{"address":"北京"}},
+                {"rang":{"birthday":{"gte":"1996-09-01"}}}
+            ]
+        }
+    }
+}
+```
+
+###### constant_score查询
+
+它将一个不变的常量评分应用于所有匹配的文档。它经常被用于你只需要执行一个filter而没有其他查询（例如：评分查询）
+
+```json
+GET /zzx/_search
+{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": {
+          "interests": "唱歌"
+        }
+      }
+    }
+  }
+}
+
+```
+
+##### 分页查询中的deep paging问题
+
+```json
+#使用from和size就行分页查询，from指定从那个文档开始，size指定分页大小
+GET /ZZX/_search?from=1&size=3
+```
+
+
+
+- deep paging：查询的很深，比如一个索引有三个primary shard，分别存储了6000条数据，我们要得到第100页（每页10条），类似于这种状况被称为deep paging；
+- 分页查询数据的正确做法，每个shard把0-999条数据都查询出来并排序，然后全部返回给coordinate node按照_score分数排序后取出第100页的10条数据，返回给客户端；
+
+deep paging对性能的影响：
+
+- 耗费网络带宽，因为搜索过深，各个shard要把数据传送给coordinate node，这个过程存在大量的数据传输，消耗网络；
+- 消耗内存，各个shard要把数据传送给coordinate node，这个传递回来的数据是被coordinate node保存在内存中，会消耗大量的内存；
+- 消耗CPU，coordinate node要把传送回来的数据进行排序，这个排序过程很消耗CPU
+
 #### command-cli
 
 安装elasticSearch是提供了命令行界面，打开方式
@@ -289,3 +826,46 @@ select * from "zzx_demo" where not value_1 > 5 limit 5;
 类似于MySQL命令行模式
 
 #### JDBC
+
+#### Java API
+
+##### spring boot 集成elasticsearch
+
+###### maven依赖引入
+
+```xml
+   
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.2.0.RELEASE</version>
+  </parent>   
+
+<dependency>  
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-test</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+###### application.yml配置
+
+```yaml
+spring:
+  elasticsearch:
+    rest:
+      username: elastic
+      uris: http://192.168.183.129:9200
+      password: elastic
+```
+
+
+
